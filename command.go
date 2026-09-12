@@ -74,3 +74,8 @@ func handlerRegister(s *state, cmd command) error {
 	fmt.Printf("The user: %v was created\n", name)
 	return nil
 }
+
+func handlerReset(s *state, cmd command) error {
+	err := s.db.DeleteAllUsers(context.Background())
+	return err
+}
