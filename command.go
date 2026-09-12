@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/SebastianGeroli/gator-boot-dev/internal/config"
+	"github.com/SebastianGeroli/gator-boot-dev/internal/database"
+	"github.com/google/uuid"
 )
 
 type commands struct {
@@ -17,20 +21,8 @@ type command struct {
 }
 
 type state struct {
+	db     *database.Queries
 	config *config.Config
-}
-
-func handlerLogin(s *state, cmd command) error {
-	if len(cmd.args) == 0 {
-		return errors.New("username is required\n")
-	}
-	username := cmd.args[0]
-	err := s.config.SetUser(username)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("The user has been set\n")
-	return nil
 }
 
 func (c *commands) run(s *state, cmd command) error {
@@ -47,4 +39,38 @@ func (c *commands) run(s *state, cmd command) error {
 
 func (c *commands) register(name string, f func(*state, command) error) {
 	c.handlers[name] = f
+}
+
+func handlerLogin(s *state, cmd command) error {
+	if len(cmd.args) == 0 {
+		return errors.New("username is required\n")
+	}
+	username := cmd.args[0]
+	user, err := s.db.GetUser(context.Background(), username)
+	if err != nil {
+		return err
+	}
+	s.config.SetUser(username)
+	fmt.Printf("Logged in as: %v\n", user.Name)
+	return nil
+}
+
+func handlerRegister(s *state, cmd command) error {
+	if len(cmd.args) == 0 {
+		return errors.New("username is required\n")
+	}
+	name := cmd.args[0]
+	userParams := database.CreateUserParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      name,
+	}
+	_, err := s.db.CreateUser(context.Background(), userParams)
+	if err != nil {
+		return err
+	}
+	s.config.SetUser(name)
+	fmt.Printf("The user: %v was created\n", name)
+	return nil
 }

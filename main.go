@@ -1,26 +1,37 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 
 	"github.com/SebastianGeroli/gator-boot-dev/internal/config"
+	"github.com/SebastianGeroli/gator-boot-dev/internal/database"
+	_ "github.com/lib/pq"
 )
 
 func main() {
+
 	cfg, err := config.Read()
 	if err != nil {
 		fmt.Printf("%v", err)
 		os.Exit(1)
 	}
+
+	db, err := sql.Open("postgres", cfg.DbUrl)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
+	}
+	dbQueries := database.New(db)
+
 	appState := state{
+		db:     dbQueries,
 		config: &cfg,
 	}
-	appCommands := commands{
-		handlers: map[string]func(*state, command) error{
-			"login": handlerLogin,
-		},
-	}
+	appCommands := commands{handlers: map[string]func(*state, command) error{}}
+	appCommands.register("login", handlerLogin)
+	appCommands.register("register", handlerRegister)
 
 	args := os.Args
 	if len(args) < 2 {
@@ -36,7 +47,7 @@ func main() {
 	}
 	err = appCommands.run(&appState, cmd)
 	if err != nil {
-		fmt.Printf("%v", err)
+		fmt.Printf("%v\n", err)
 		os.Exit(1)
 	}
 }
