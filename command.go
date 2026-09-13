@@ -46,7 +46,7 @@ func handlerLogin(s *state, cmd command) error {
 		return errors.New("username is required\n")
 	}
 	username := cmd.args[0]
-	user, err := s.db.GetUser(context.Background(), username)
+	user, err := s.db.GetUserByName(context.Background(), username)
 	if err != nil {
 		return err
 	}
@@ -103,6 +103,50 @@ func handlerAgg(s *state, cmd command) error {
 	}
 
 	fmt.Printf("%v\n", feed)
+
+	return nil
+}
+
+func handlerAddFeed(s *state, cmd command) error {
+	if len(cmd.args) < 2 {
+		return errors.New("name and url required\n")
+	}
+
+	user, err := s.db.GetUserByName(context.Background(), s.config.UserName)
+	if err != nil {
+		return err
+	}
+
+	name := cmd.args[0]
+	url := cmd.args[1]
+	params := database.CreateFeedParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      name,
+		Url:       url,
+		UserID:    user.ID,
+	}
+	feed, err := s.db.CreateFeed(context.Background(), params)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%v", feed)
+	return nil
+}
+
+func handlerFeeds(s *state, cmd command) error {
+	feeds, err := s.db.GetAllFeeds(context.Background())
+	if err != nil {
+		return err
+	}
+	for _, feed := range feeds {
+		user, err := s.db.GetUserById(context.Background(), feed.UserID)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%v %v %v\n", feed.Name, feed.Url, user.Name)
+	}
 
 	return nil
 }
