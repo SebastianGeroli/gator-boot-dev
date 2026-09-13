@@ -17,7 +17,7 @@ Before running Gator you'll need:
 Install the `gator` CLI with `go install`:
 
 ```bash
-go install github.com/SebastianGeroli/gator-boot-dev@latest
+go install github.com/SebastianGeroli/gator-boot-dev/cmd/gator@latest
 ```
 
 This downloads, compiles, and installs the `gator` binary to your
