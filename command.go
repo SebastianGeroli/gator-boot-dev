@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"log"
+	"strconv"
 	"time"
 
 	"github.com/SebastianGeroli/gator-boot-dev/internal/config"
 	"github.com/SebastianGeroli/gator-boot-dev/internal/database"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type commands struct {
@@ -225,6 +229,36 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 	return nil
 }
 
+func handlerBrowse(s *state, cmd command) error {
+	limit := 2
+	if len(cmd.args) > 0 {
+		parsedLimit, err := strconv.Atoi(cmd.args[0])
+		if err != nil {
+			return fmt.Errorf("invalid limit: %w", err)
+		}
+		limit = parsedLimit
+	}
+
+	posts, err := s.db.GetPostsForUser(context.Background(), int32(limit))
+	if err != nil {
+		return err
+	}
+
+	for _, post := range posts {
+		fmt.Printf("%s\n", post.Title.String)
+		fmt.Printf("%s\n", post.Url)
+		if post.PublishedAt.Valid {
+			fmt.Printf("Published: %s\n", post.PublishedAt.Time.Format(time.RFC1123))
+		}
+		if post.Description.Valid {
+			fmt.Printf("%s\n", post.Description.String)
+		}
+		fmt.Println()
+	}
+
+	return nil
+}
+
 func scrapeFeeds(s *state) error {
 	nextFeedToFetch, err := s.db.GetNextFeedToFetch(context.Background())
 	if err != nil {
@@ -245,10 +279,31 @@ func scrapeFeeds(s *state) error {
 		return err
 	}
 
-	fmt.Printf("%v\n", rssFeed.Channel.Title)
-	for _, item := range rssFeed.Channel.Item {
-		fmt.Printf("- %v\n", item.Title)
-	}
+	fmt.Printf("Fetched: %v\n", updatedFeed.Url)
 
+	for _, item := range rssFeed.Channel.Item {
+		var publishedAt sql.NullTime
+		if parsed, err := time.Parse(time.RFC1123Z, item.PubDate); err == nil {
+			publishedAt = sql.NullTime{Time: parsed, Valid: true}
+		}
+		postParams := database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Title:       sql.NullString{String: item.Title, Valid: item.Title != ""},
+			Url:         item.Link,
+			Description: sql.NullString{String: item.Description, Valid: item.Description != ""},
+			PublishedAt: publishedAt,
+			FeedID:      updatedFeed.ID,
+		}
+		_, err = s.db.CreatePost(context.Background(), postParams)
+		if err != nil {
+			var pqErr *pq.Error
+			if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+				continue
+			}
+			log.Printf("couldn't create post %q: %v", item.Link, err)
+		}
+	}
 	return nil
 }
