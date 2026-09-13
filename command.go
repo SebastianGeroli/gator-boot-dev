@@ -107,14 +107,9 @@ func handlerAgg(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 2 {
 		return errors.New("name and url required\n")
-	}
-
-	user, err := s.db.GetUserByName(context.Background(), s.config.UserName)
-	if err != nil {
-		return err
 	}
 
 	name := cmd.args[0]
@@ -135,7 +130,7 @@ func handlerAddFeed(s *state, cmd command) error {
 		name: "follow",
 		args: []string{feed.Url},
 	}
-	handlerFollow(s, followCommand)
+	handlerFollow(s, followCommand, user)
 
 	fmt.Printf("%v", feed)
 	return nil
@@ -157,14 +152,9 @@ func handlerFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 1 {
 		return errors.New("url required")
-	}
-
-	user, err := s.db.GetUserByName(context.Background(), s.config.UserName)
-	if err != nil {
-		return err
 	}
 
 	feed_url := cmd.args[0]
@@ -189,12 +179,7 @@ func handlerFollow(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollowing(s *state, cmd command) error {
-	user, err := s.db.GetUserByName(context.Background(), s.config.UserName)
-	if err != nil {
-		return err
-	}
-
+func handlerFollowing(s *state, cmd command, user database.User) error {
 	follows, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return err
@@ -203,5 +188,30 @@ func handlerFollowing(s *state, cmd command) error {
 	for _, follow := range follows {
 		fmt.Printf("%v \n", follow.FeedName)
 	}
+	return nil
+}
+
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) < 1 {
+		return errors.New("url is required")
+	}
+
+	url := cmd.args[0]
+	feed, err := s.db.GetFeedByURL(context.Background(), url)
+	if err != nil {
+		return err
+	}
+
+	params := database.DeleteFollowParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	}
+
+	_, err = s.db.DeleteFollow(context.Background(), params)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Unfollowed: %v\n", feed.Name)
 	return nil
 }
